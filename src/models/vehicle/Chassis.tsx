@@ -63,7 +63,7 @@ interface ChassisGLTF extends GLTF {
 
 type MaterialMesh = Mesh<BufferGeometry, MeshStandardMaterial>
 
-const gears = 10
+const gears = 6
 const c = new Color()
 const v = new Vector3()
 
@@ -93,20 +93,33 @@ export const Chassis = forwardRef<Group, PropsWithChildren<BoxProps>>(({ args = 
     return () => setState({ api: null })
   }, [api])
 
-  useLayoutEffect(
-    () =>
-      api.velocity.subscribe((velocity) => {
-        const speed = v.set(...velocity).length()
-        const gearPosition = speed / (maxSpeed / gears)
-        const rpmTarget = Math.max(((gearPosition % 1) + Math.log(gearPosition)) / 6, 0)
-        Object.assign(mutation, { rpmTarget, speed, velocity })
-      }),
-    [maxSpeed],
-  )
+  useLayoutEffect( () =>
+    api.velocity.subscribe((velocity) => {
+      const speed = v.set(...velocity).length()
+      const gearPosition = speed / (maxSpeed / gears)
+      const rpmTarget = Math.max(((gearPosition % 1) + Math.log(gearPosition)) / 4, 0)
+      Object.assign(mutation, { rpmTarget, speed, velocity, gearPosition })
+    }),
+  [maxSpeed], )
 
   let camera: Camera
   let controls: Controls
   useFrame((_, delta) => {
+    // Get the current velocity from the physics API
+    // api.velocity.subscribe((velocity) => {
+    //   const currentSpeed = v.set(...velocity).length()
+
+    //   if (mutation.speed>5){
+    //     // Calculate the reduced speed with lerp for gradual slowdown
+    //     const targetSpeed = Math.max(currentSpeed - delta * 20, 0) // Adjust rate of speed decrease (0.1 can be tuned)
+    //     const lerpedSpeed = lerp(currentSpeed, targetSpeed, delta)
+  
+    //     // Scale down the velocity vector to match the lerped speed
+    //     const scaledVelocity = v.clone().setLength(lerpedSpeed)
+    //     api.velocity.set(scaledVelocity.x, scaledVelocity.y, scaledVelocity.z)
+    //   }
+    // })
+    
     camera = getState().camera
     controls = getState().controls
     brake.current.material.color.lerp(c.set(controls.brake ? '#555' : 'white'), delta * 10)

@@ -20,7 +20,8 @@ const v = new Vector3()
 type VehicleProps = PropsWithChildren<Pick<BoxProps, 'angularVelocity' | 'position' | 'rotation'>>
 type DerivedWheelInfo = WheelInfo & Required<Pick<WheelInfoOptions, 'chassisConnectionPointLocal' | 'isFrontWheel'>>
 
-export function Vehicle({ angularVelocity, children, position, rotation }: VehicleProps) {
+export function Vehicle({ angularVelocity, children, position, rotation }: VehicleProps, 
+  carSim: {speed:number, fuel:number, rpms:number, temp:number}) {
   const defaultCamera = useThree((state) => state.camera)
   const [chassisBody, vehicleConfig, wheelInfo, wheels] = useStore((s) => [s.chassisBody, s.vehicleConfig, s.wheelInfo, s.wheels])
   const { back, force, front, height, maxBrake, steer, maxSpeed, width } = vehicleConfig
@@ -61,7 +62,20 @@ export function Vehicle({ angularVelocity, children, position, rotation }: Vehic
     camera = getState().camera
     editor = getState().editor
     controls = getState().controls
+
+    // Decrease fuel gradually
+    mutation.fuel = Math.max(mutation.fuel - delta * 0.75, 0) // Adjust the rate of fuel decrease (0.005 can be tuned)
+
     speed = mutation.speed
+    console.log("controls.forwards", controls.forward);
+    if (carSim.speed>0){
+      console.log("carSim.speed: ", carSim.speed);
+      controls.forward = true;
+      mutation.speed = carSim.speed;
+      mutation.fuel = carSim.fuel;
+      mutation.temp = carSim.temp;
+      mutation.rpmTarget = carSim.rpms;
+    }
 
     isBoosting = controls.boost && mutation.boost > 0
 
@@ -69,12 +83,23 @@ export function Vehicle({ angularVelocity, children, position, rotation }: Vehic
       mutation.boost = Math.max(mutation.boost - 1, 0)
     }
 
+    // Decrease fuel gradually
+    mutation.fuel = Math.max(mutation.fuel - delta * 0.75, 0) // Adjust the rate of fuel decrease (0.005 can be tuned)
+   
     engineValue = lerp(
       engineValue,
-      controls.forward || controls.backward ? force * (controls.forward && !controls.backward ? (isBoosting ? -1.5 : -1) : 1) : 0,
-      delta * 20,
+      (controls.forward || controls.backward) && (mutation.fuel !=0)
+        ? force * (controls.forward && !controls.backward 
+          ? (isBoosting 
+            ? -3.5 
+            : -1) //forward boost
+          : 1) // backward force
+        : 0,
+      delta * 20, // smooth speed
     )
-    steeringValue = lerp(steeringValue, controls.left || controls.right ? steer * (controls.left && !controls.right ? 1 : -1) : 0, delta * 20)
+    steeringValue = lerp(steeringValue, controls.left || controls.right 
+      ? steer * (controls.left && !controls.right ? 1 : -1) 
+      : 0, delta * 20)
     for (i = 2; i < 4; i++) api.applyEngineForce(speed < maxSpeed ? engineValue : 0, i)
     for (i = 0; i < 2; i++) api.setSteeringValue(steeringValue, i)
     for (i = 2; i < 4; i++) api.setBrake(controls.brake ? (controls.forward ? maxBrake / 1.5 : maxBrake) : 0, i)
@@ -114,6 +139,10 @@ export function Vehicle({ angularVelocity, children, position, rotation }: Vehic
 
   const ToggledAccelerateAudio = useToggle(AccelerateAudio, ['ready', 'sound'])
   const ToggledEngineAudio = useToggle(EngineAudio, ['ready', 'sound'])
+  
+  // if (mutation.fuel>0){
+  //   ToggledEngineAudio = useToggle(EngineAudio, ['ready', 'sound'])
+  // }
 
   return (
     <group>
